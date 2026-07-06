@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "username": "",
+  "password": "",
+  "api_key": "put-your-rqdata-api-key-here",
+  "uri": "",
+  "addr": ["rqdatad-pro.ricequant.com", 16011],
+  "market": "cn",
+  "future_types": ["Future"],
+  "lookback_trading_days": 20,
+  "min_avg_notional": 5000000000,
+  "fallback_to_sina": true
+}
