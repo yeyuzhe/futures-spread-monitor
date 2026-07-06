@@ -481,7 +481,8 @@
         els.mProfitable.textContent = data.summary.profitable ?? "-";
         els.mBest.textContent = fmtPct(data.summary.best_return);
         const mode = data.mode === "static" ? "GitHub静态" : "本地服务";
-        els.status.textContent = `${mode}，更新时间 ${data.updated_at}，rqdata行情 ${data.quote_status.rqdata_prices} 条，本地行情 ${data.quote_status.file_quotes} 条`;
+        const updatedAt = data.updated_at_label || data.updated_at || "-";
+        els.status.textContent = `${mode}，更新时间 ${updatedAt}，rqdata行情 ${data.quote_status.rqdata_prices} 条，本地行情 ${data.quote_status.file_quotes} 条`;
         if (data.quote_status.rqdata_errors && data.quote_status.rqdata_errors.length) {
           els.warning.textContent = data.quote_status.rqdata_errors.join("；");
           els.warning.style.display = "block";
