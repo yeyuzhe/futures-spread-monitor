@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>可转抛价差监控</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f4;
+      --panel: #ffffff;
+      --ink: #202423;
+      --muted: #68706d;
+      --line: #dfe4de;
+      --accent: #17756b;
+      --accent-2: #9a5b1f;
+      --good: #0f7a47;
+      --bad: #a23b34;
+      --warn-bg: #fff4df;
+      --good-bg: #e9f6ef;
+      --shadow: 0 8px 28px rgba(31, 43, 38, 0.08);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    header {
+      padding: 18px 24px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.86);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      backdrop-filter: blur(10px);
+    }
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 680;
+      letter-spacing: 0;
+    }
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto auto auto auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+    input, select, button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 0 10px;
+      font: inherit;
+      font-size: 14px;
+    }
+    button {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 620;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--accent);
+    }
+    .month-filter {
+      position: relative;
+    }
+    .month-filter button {
+      width: 132px;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .month-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 42px;
+      width: 260px;
+      max-height: 320px;
+      overflow: auto;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      z-index: 10;
+    }
+    .month-menu.open {
+      display: grid;
+      gap: 6px;
+    }
+    .month-menu label {
+      min-height: 28px;
+      color: var(--ink);
+      align-items: center;
+    }
+    .month-menu input {
+      min-height: auto;
+      width: auto;
+    }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    label input {
+      width: 90px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 12px;
+      padding: 14px 24px;
+    }
+    .metric {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+    }
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .metric strong {
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    main {
+      padding: 0 24px 24px;
+      min-width: 0;
+    }
+    .table-wrap {
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      max-height: calc(100vh - 190px);
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 1180px;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    th:first-child, td:first-child,
+    th:nth-child(2), td:nth-child(2),
+    th:nth-child(3), td:nth-child(3) {
+      text-align: left;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f9faf7;
+      color: #49504d;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    tbody tr:hover {
+      background: #f8fbf8;
+    }
+    .sector-row td {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: #eef5f1;
+      color: #2f5f55;
+      font-weight: 700;
+      text-align: left;
+      border-bottom-color: #cddbd5;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+    }
+    .tag.good {
+      background: var(--good-bg);
+      border-color: #bde5cb;
+      color: var(--good);
+      font-weight: 650;
+    }
+    .positive { color: var(--good); font-weight: 650; }
+    .negative { color: var(--bad); }
+    .muted { color: var(--muted); }
+    .warning {
+      display: none;
+      margin: 0 24px 14px;
+      padding: 10px 12px;
+      border: 1px solid #efd39c;
+      background: var(--warn-bg);
+      border-radius: 8px;
+      color: #6f4a16;
+      font-size: 13px;
+    }
+    .empty {
+      padding: 36px;
+      color: var(--muted);
+      text-align: center;
+    }
+    @media (max-width: 900px) {
+      header, main { padding-left: 14px; padding-right: 14px; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); padding-left: 14px; padding-right: 14px; }
+      .status { white-space: normal; }
+      .title-row { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title-row">
+        <h1>可转抛价差监控</h1>
+        <div class="status" id="status">等待刷新</div>
+      </div>
+      <div class="toolbar">
+        <input id="search" placeholder="搜索品种、月份或合约">
+        <select id="sectorFilter">
+          <option value="all">全部板块</option>
+        </select>
+        <select id="source">
+          <option value="auto">rqdata 优先</option>
+          <option value="rqdata">只用 rqdata</option>
+          <option value="excel">只用表内缓存</option>
+        </select>
+        <label>资金成本 <input id="funding" type="number" step="0.001" value="0.03"></label>
+        <select id="profitFilter">
+          <option value="all">全部价差</option>
+          <option value="profit">只看有利润</option>
+        </select>
+        <div class="month-filter">
+          <button class="secondary" id="monthMenuButton" type="button">月份: 全部</button>
+          <div class="month-menu" id="monthMenu">
+            <label><input type="checkbox" value="all" checked> 全部月份</label>
+            <div id="monthOptions"></div>
+          </div>
+        </div>
+        <button id="refresh">刷新</button>
+      </div>
+    </header>
+
+    <section class="metrics">
+      <div class="metric"><span>品种数</span><strong id="mProducts">-</strong></div>
+      <div class="metric"><span>价差组合</span><strong id="mSpreads">-</strong></div>
+      <div class="metric"><span>有利润空间</span><strong id="mProfitable">-</strong></div>
+      <div class="metric"><span>最高年化</span><strong id="mBest">-</strong></div>
+    </section>
+
+    <div class="warning" id="warning"></div>
+
+    <main>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>状态</th>
+              <th>板块</th>
+              <th>品种</th>
+              <th>月份</th>
+              <th>近月合约</th>
+              <th>远月合约</th>
+              <th>近月价</th>
+              <th>远月价</th>
+              <th>实际价差</th>
+              <th>成本价差</th>
+              <th>净利润/吨</th>
+              <th>年化收益率</th>
+              <th>持有天数</th>
+              <th>费用合计</th>
+              <th>仓储费</th>
+              <th>交割区间</th>
+              <th>行情源</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="17" class="empty">正在读取表格和行情</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const state = { rows: [], selectedMonths: new Set(["all"]) };
+    const els = {
+      status: document.querySelector("#status"),
+      warning: document.querySelector("#warning"),
+      tbody: document.querySelector("#tbody"),
+      search: document.querySelector("#search"),
+      sector: document.querySelector("#sectorFilter"),
+      source: document.querySelector("#source"),
+      funding: document.querySelector("#funding"),
+      filter: document.querySelector("#profitFilter"),
+      monthButton: document.querySelector("#monthMenuButton"),
+      monthMenu: document.querySelector("#monthMenu"),
+      monthOptions: document.querySelector("#monthOptions"),
+      refresh: document.querySelector("#refresh"),
+      mProducts: document.querySelector("#mProducts"),
+      mSpreads: document.querySelector("#mSpreads"),
+      mProfitable: document.querySelector("#mProfitable"),
+      mBest: document.querySelector("#mBest")
+    };
+
+    function fmtNum(value, digits = 2) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+      return Number(value).toLocaleString("zh-CN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+
+    function fmtPct(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+      return (Number(value) * 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+    }
+
+    function signedClass(value) {
+      return Number(value) >= 0 ? "positive" : "negative";
+    }
+
+    function sortPairs(a, b) {
+      const [a1, a2] = a.replace("月", "").split("-").map(Number);
+      const [b1, b2] = b.replace("月", "").split("-").map(Number);
+      return (a1 - b1) || (a2 - b2);
+    }
+
+    function refreshFilters() {
+      const sectors = [...new Set(state.rows.map(row => row.sector || "其他"))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+      const currentSector = els.sector.value;
+      els.sector.innerHTML = `<option value="all">全部板块</option>` + sectors.map(sector => `<option value="${sector}">${sector}</option>`).join("");
+      els.sector.value = sectors.includes(currentSector) ? currentSector : "all";
+
+      const pairs = [...new Set(state.rows.map(row => row.pair))].sort(sortPairs);
+      const selected = new Set([...state.selectedMonths].filter(value => value === "all" || pairs.includes(value)));
+      if (!selected.size) selected.add("all");
+      state.selectedMonths = selected;
+      els.monthOptions.innerHTML = pairs.map(pair => `
+        <label><input type="checkbox" value="${pair}" ${selected.has(pair) ? "checked" : ""}> ${pair}</label>
+      `).join("");
+      const allBox = els.monthMenu.querySelector('input[value="all"]');
+      allBox.checked = selected.has("all");
+      updateMonthButton();
+    }
+
+    function updateMonthButton() {
+      if (state.selectedMonths.has("all")) {
+        els.monthButton.textContent = "月份: 全部";
+        return;
+      }
+      const selected = [...state.selectedMonths].sort(sortPairs);
+      els.monthButton.textContent = selected.length <= 2 ? `月份: ${selected.join(", ")}` : `月份: 已选${selected.length}项`;
+    }
+
+    function isLocalServer() {
+      return ["127.0.0.1", "localhost", "::1"].includes(location.hostname);
+    }
+
+    async function fetchMonitorData() {
+      if (isLocalServer()) {
+        const params = new URLSearchParams({
+          source: els.source.value,
+          funding_rate: els.funding.value || "0.03"
+        });
+        const res = await fetch(`/api/data?${params.toString()}`, { cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "接口返回异常");
+        return data;
+      }
+      els.source.disabled = true;
+      els.funding.disabled = true;
+      const res = await fetch(`data/latest_monitor.json?t=${Date.now()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "静态数据读取失败");
+      return data;
+    }
+
+    function render() {
+      const kw = els.search.value.trim().toLowerCase();
+      const onlyProfit = els.filter.value === "profit";
+      const sector = els.sector.value;
+      const rows = state.rows.filter(row => {
+        if (onlyProfit && !row.is_profitable) return false;
+        if (sector !== "all" && row.sector !== sector) return false;
+        if (!state.selectedMonths.has("all") && !state.selectedMonths.has(row.pair)) return false;
+        if (!kw) return true;
+        return [
+          row.sector, row.product, row.pair, row.near_symbol, row.far_symbol, row.quote_source
+        ].join(" ").toLowerCase().includes(kw);
+      });
+      if (!rows.length) {
+        els.tbody.innerHTML = `<tr><td colspan="17" class="empty">没有匹配的价差组合</td></tr>`;
+        return;
+      }
+      const sortedRows = [...rows].sort((a, b) =>
+        (a.sector || "").localeCompare(b.sector || "", "zh-CN") || Number(b.annualized_return) - Number(a.annualized_return)
+      );
+      let currentSector = "";
+      els.tbody.innerHTML = sortedRows.map(row => {
+        const sectorRow = row.sector !== currentSector
+          ? `<tr class="sector-row"><td colspan="17">${row.sector || "其他"}</td></tr>`
+          : "";
+        currentSector = row.sector;
+        return `${sectorRow}
+        <tr>
+          <td><span class="tag ${row.is_profitable ? "good" : ""}">${row.is_profitable ? "有利润" : "观察"}</span></td>
+          <td>${row.sector || "其他"}</td>
+          <td>${row.product}</td>
+          <td>${row.pair}</td>
+          <td>${row.near_symbol || "-"}</td>
+          <td>${row.far_symbol || "-"}</td>
+          <td>${fmtNum(row.near_price)}</td>
+          <td>${fmtNum(row.far_price)}</td>
+          <td class="${signedClass(row.spread)}">${fmtNum(row.spread)}</td>
+          <td class="${signedClass(row.cost_spread)}">${fmtNum(row.cost_spread)}</td>
+          <td class="${signedClass(row.net_profit)}">${fmtNum(row.net_profit)}</td>
+          <td class="${signedClass(row.annualized_return)}">${fmtPct(row.annualized_return)}</td>
+          <td>${row.hold_days}</td>
+          <td>${fmtNum(row.fee_total)}</td>
+          <td>${fmtNum(row.storage_fee)}</td>
+          <td>${row.delivery_near || "-"} 至 ${row.delivery_far || "-"}</td>
+          <td class="muted">${row.quote_source}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function load() {
+      els.refresh.disabled = true;
+      els.status.textContent = "正在刷新...";
+      els.warning.style.display = "none";
+      try {
+        const data = await fetchMonitorData();
+        state.rows = data.opportunities || [];
+        refreshFilters();
+        els.mProducts.textContent = data.summary.products ?? "-";
+        els.mSpreads.textContent = data.summary.spreads ?? "-";
+        els.mProfitable.textContent = data.summary.profitable ?? "-";
+        els.mBest.textContent = fmtPct(data.summary.best_return);
+        const mode = data.mode === "static" ? "GitHub静态" : "本地服务";
+        els.status.textContent = `${mode}，更新时间 ${data.updated_at}，rqdata行情 ${data.quote_status.rqdata_prices} 条，本地行情 ${data.quote_status.file_quotes} 条`;
+        if (data.quote_status.rqdata_errors && data.quote_status.rqdata_errors.length) {
+          els.warning.textContent = data.quote_status.rqdata_errors.join("；");
+          els.warning.style.display = "block";
+        }
+        render();
+      } catch (err) {
+        els.status.textContent = "刷新失败";
+        els.warning.textContent = err.message || String(err);
+        els.warning.style.display = "block";
+      } finally {
+        els.refresh.disabled = false;
+      }
+    }
+
+    els.refresh.addEventListener("click", load);
+    els.search.addEventListener("input", render);
+    els.filter.addEventListener("change", render);
+    els.sector.addEventListener("change", render);
+    els.source.addEventListener("change", load);
+    els.funding.addEventListener("change", load);
+    els.monthButton.addEventListener("click", () => {
+      els.monthMenu.classList.toggle("open");
+    });
+    els.monthMenu.addEventListener("change", event => {
+      const target = event.target;
+      if (!target.matches("input[type='checkbox']")) return;
+      if (target.value === "all") {
+        state.selectedMonths = new Set(["all"]);
+        els.monthMenu.querySelectorAll("input[type='checkbox']").forEach(input => {
+          input.checked = input.value === "all";
+        });
+      } else {
+        const allBox = els.monthMenu.querySelector('input[value="all"]');
+        allBox.checked = false;
+        state.selectedMonths.delete("all");
+        if (target.checked) state.selectedMonths.add(target.value);
+        else state.selectedMonths.delete(target.value);
+        if (!state.selectedMonths.size) {
+          state.selectedMonths.add("all");
+          allBox.checked = true;
+        }
+      }
+      updateMonthButton();
+      render();
+    });
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".month-filter")) {
+        els.monthMenu.classList.remove("open");
+      }
+    });
+    load();
+    setInterval(load, 300000);
+  </script>
+</body>
+</html>
