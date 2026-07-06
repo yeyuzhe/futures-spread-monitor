@@ -18,6 +18,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 import xml.etree.ElementTree as ET
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -57,6 +58,19 @@ SECTOR_MAP = {
 }
 COLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+CN_TZ = ZoneInfo("Asia/Shanghai")
+
+
+def now_cn() -> dt.datetime:
+    return dt.datetime.now(CN_TZ)
+
+
+def now_cn_iso() -> str:
+    return now_cn().isoformat(timespec="seconds")
+
+
+def now_cn_label() -> str:
+    return now_cn().strftime("%Y-%m-%d %H:%M:%S 北京时间")
 
 
 def excel_date(serial: float | int | None) -> str | None:
@@ -469,7 +483,8 @@ class RqdataQuoteSource:
             CACHE_PATH.write_text(
                 json.dumps(
                     {
-                        "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
+                        "updated_at": now_cn_iso(),
+                        "updated_at_label": now_cn_label(),
                         "quotes": {
                             rtd: {"price": price, "order_book_id": symbol_map.get(rtd)}
                             for rtd, price in sorted(prices.items())
@@ -607,7 +622,9 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
     opportunities.sort(key=lambda x: x.annualized_return, reverse=True)
     profitable = [x for x in opportunities if x.is_profitable]
     return {
-        "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
+        "updated_at": now_cn_iso(),
+        "updated_at_label": now_cn_label(),
+        "timezone": "Asia/Shanghai",
         "source_requested": source,
         "quote_status": {
             "rqdata_prices": len(rq_prices),
@@ -655,7 +672,9 @@ class MonitorHandler(SimpleHTTPRequestHandler):
                     {
                         "error": str(exc),
                         "traceback": traceback.format_exc(),
-                        "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
+                        "updated_at": now_cn_iso(),
+                        "updated_at_label": now_cn_label(),
+                        "timezone": "Asia/Shanghai",
                     },
                     status=500,
                 )
