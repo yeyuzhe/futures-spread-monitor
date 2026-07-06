@@ -1,0 +1,9 @@
+rqdata_config.local.json
+quotes.json
+quotes.csv
+data/
+dist/
+__pycache__/
+*.pyc
+.env
+*github_token*
