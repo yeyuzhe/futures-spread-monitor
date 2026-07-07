@@ -41,6 +41,9 @@ jobs:
           RQDATA_MARKET: cn
         run: python monitor_server.py --export-static --source auto --funding-rate 0.03
 
+      - name: Validate rqdata quotes
+        run: python -c "import json; data=json.load(open('dist/data/latest_monitor.json', encoding='utf-8')); count=data.get('quote_status', {}).get('rqdata_prices', 0); print('rqdata_prices', count); raise SystemExit(0 if count > 0 else 1)"
+
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
