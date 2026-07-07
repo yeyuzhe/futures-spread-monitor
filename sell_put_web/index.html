@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>期货 Put/Call 板块监控</title>
+    <link rel="stylesheet" href="styles.css?v=20260707a">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <h1>期货 Put/Call 板块监控</h1>
+          <p id="statusText">等待连接 rqdata</p>
+        </div>
+        <div class="controls" aria-label="监控参数">
+          <label>
+            合约选择
+            <select id="modeInput">
+              <option value="dominant">期货主力合约</option>
+              <option value="option_volume">期权成交量最大合约</option>
+            </select>
+          </label>
+          <label>
+            刷新
+            <select id="intervalInput">
+              <option value="300" selected>5 分钟</option>
+            </select>
+          </label>
+          <button id="refreshButton" type="button" title="立即刷新" aria-label="立即刷新">↻</button>
+          <button id="resetSortButton" class="textButton" type="button">恢复板块</button>
+        </div>
+      </section>
+
+      <section id="errorPanel" class="notice" hidden></section>
+
+      <section class="progressPanel" aria-label="行情加载进度">
+        <div class="progressMeta">
+          <span id="progressLabel">等待加载行情</span>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progressTrack">
+          <div id="progressBar" class="progressBar"></div>
+        </div>
+      </section>
+
+      <section class="monitorPanel" data-side="put" aria-label="期货最低执行价 Put 板块监控">
+        <div class="monitorHeader">
+          <div>
+            <h2>期货最低执行价 Put 板块监控</h2>
+            <p id="putStatus">等待更新</p>
+          </div>
+        </div>
+        <div class="topScroll" aria-hidden="true">
+          <div class="topScrollInner"></div>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>品种</th>
+                <th>期货合约</th>
+                <th>选择依据</th>
+                <th><button class="sortButton" type="button" data-sort="future_last">期货最新</button></th>
+                <th><button class="sortButton" type="button" data-sort="future_turnover">期货交易额</button></th>
+                <th>最低执行价 Put</th>
+                <th><button class="sortButton" type="button" data-sort="strike">执行价</button></th>
+                <th><button class="sortButton" type="button" data-sort="strike_gap_ratio">价差比例</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_bid1">Put 买一</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_bid1_volume">买一量</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_last">Put 最新</button></th>
+                <th>到期日</th>
+                <th><button class="sortButton" type="button" data-sort="days_to_expiry">剩余天数</button></th>
+                <th>乘数</th>
+                <th>期权张数/手</th>
+                <th>保证金率</th>
+                <th><button class="sortButton" type="button" data-sort="margin_amount">保证金金额</button></th>
+                <th>期货杠杆</th>
+                <th><button class="sortButton" type="button" data-sort="cash_yield">到期收益率</button></th>
+                <th><button class="sortButton" type="button" data-sort="annualized_cash_yield">年化收益率</button></th>
+                <th><button class="sortButton" type="button" data-sort="margin_yield">带杠杆到期</button></th>
+                <th><button class="sortButton" type="button" data-sort="annualized_margin_yield">带杠杆年化</button></th>
+                <th>更新时间</th>
+              </tr>
+            </thead>
+            <tbody id="putQuotesBody">
+              <tr>
+                <td colspan="23" class="empty">正在读取配置</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="monitorPanel" data-side="call" aria-label="期货最高执行价 Call 板块监控">
+        <div class="monitorHeader">
+          <div>
+            <h2>期货最高执行价 Call 板块监控</h2>
+            <p id="callStatus">等待更新</p>
+          </div>
+        </div>
+        <div class="topScroll" aria-hidden="true">
+          <div class="topScrollInner"></div>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>品种</th>
+                <th>期货合约</th>
+                <th>选择依据</th>
+                <th><button class="sortButton" type="button" data-sort="future_last">期货最新</button></th>
+                <th><button class="sortButton" type="button" data-sort="future_turnover">期货交易额</button></th>
+                <th>最高执行价 Call</th>
+                <th><button class="sortButton" type="button" data-sort="strike">执行价</button></th>
+                <th><button class="sortButton" type="button" data-sort="strike_gap_ratio">价差比例</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_bid1">Call 买一</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_bid1_volume">买一量</button></th>
+                <th><button class="sortButton" type="button" data-sort="option_last">Call 最新</button></th>
+                <th>到期日</th>
+                <th><button class="sortButton" type="button" data-sort="days_to_expiry">剩余天数</button></th>
+                <th>乘数</th>
+                <th>期权张数/手</th>
+                <th>保证金率</th>
+                <th><button class="sortButton" type="button" data-sort="margin_amount">保证金金额</button></th>
+                <th>期货杠杆</th>
+                <th><button class="sortButton" type="button" data-sort="cash_yield">到期收益率</button></th>
+                <th><button class="sortButton" type="button" data-sort="annualized_cash_yield">年化收益率</button></th>
+                <th><button class="sortButton" type="button" data-sort="margin_yield">带杠杆到期</button></th>
+                <th><button class="sortButton" type="button" data-sort="annualized_margin_yield">带杠杆年化</button></th>
+                <th>更新时间</th>
+              </tr>
+            </thead>
+            <tbody id="callQuotesBody">
+              <tr>
+                <td colspan="23" class="empty">正在读取配置</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="main.js?v=20260707a"></script>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 rqdata_config.local.json
 option_monitor_config.local.json
+sell_put_monitor_config.local.json
 monitor_config.json
 quotes.json
 quotes.csv

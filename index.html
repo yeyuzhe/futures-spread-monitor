@@ -46,7 +46,7 @@
     }
     .strategy-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: 1fr;
       gap: 18px;
     }
     .strategy-card {
@@ -168,6 +168,22 @@
             <span class="meta">商品期权</span>
             <span class="meta">Put / Call</span>
             <span class="meta">静态快照</span>
+          </div>
+          <span class="open">进入策略</span>
+        </div>
+      </a>
+
+      <a class="strategy-card" href="sell-put-monitor/">
+        <div class="card-content">
+          <div class="card-top">
+            <h2 class="card-title">期货最低执行价 Sell Put 监控</h2>
+            <span class="status">运行中</span>
+          </div>
+          <p class="card-desc">按板块展示各期货品种最低执行价 Put 与最高执行价 Call，跟踪买一价、保证金占用、到期收益率和带杠杆年化收益。</p>
+          <div class="meta-row">
+            <span class="meta">Sell Put</span>
+            <span class="meta">板块监控</span>
+            <span class="meta">5分钟刷新</span>
           </div>
           <span class="open">进入策略</span>
         </div>

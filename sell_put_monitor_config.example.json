@@ -1,0 +1,34 @@
+{
+  "enabled": true,
+  "rqdata": {
+    "username": "",
+    "password": "",
+    "api_key": "",
+    "uri": "",
+    "addr": ["rqdatad-pro.ricequant.com", 16011]
+  },
+  "market": "cn",
+  "future_types": ["Future"],
+  "lookback_trading_days": 20,
+  "min_avg_notional": 1000000000,
+  "fallback_to_sina": true,
+  "default_selection_mode": "dominant",
+  "option_boards": {
+    "黑色": ["I", "RB", "HC", "J", "JM", "SF", "SM", "ZC"],
+    "有色/贵金属": ["CU", "AL", "ZN", "PB", "NI", "SN", "AU", "AG", "AO", "LC", "SI"],
+    "能源化工": ["RU", "BR", "FU", "BU", "SC", "LU", "NR", "TA", "MA", "PF", "PX", "SA", "UR", "FG", "L", "V", "PP", "EG", "EB", "PG", "SH"],
+    "农产品": ["M", "Y", "P", "A", "B", "C", "CS", "JD", "LH", "SR", "CF", "OI", "RM", "AP", "CJ", "PK"],
+    "金融": ["IF", "IH", "IC", "IM", "T", "TF", "TS", "TL"]
+  },
+  "contracts": [
+    "M2608"
+  ],
+  "poll_seconds": 300,
+  "annual_days": 365,
+  "default_margin_rate": 0.12,
+  "per_contract_margin_rate": {
+    "M2608": 0.12
+  },
+  "option_overrides": {
+  }
+}

@@ -52,11 +52,25 @@ jobs:
           RQDATA_MARKET: cn
         run: python option_vertical_app.py --export-static
 
+      - name: Build sell put monitor
+        env:
+          RQDATA_API_KEY: ${{ secrets.RQDATA_API_KEY }}
+          RQDATA_USERNAME: ${{ secrets.RQDATA_USERNAME }}
+          RQDATA_PASSWORD: ${{ secrets.RQDATA_PASSWORD }}
+          RQDATA_URI: ${{ secrets.RQDATA_URI }}
+          RQDATA_ADDR_HOST: rqdatad-pro.ricequant.com
+          RQDATA_ADDR_PORT: "16011"
+          RQDATA_MARKET: cn
+        run: python sell_put_app.py --export-static
+
       - name: Validate rqdata quotes
         run: python -c "import json; data=json.load(open('dist/data/latest_monitor.json', encoding='utf-8')); count=data.get('quote_status', {}).get('rqdata_prices', 0); print('rqdata_prices', count); raise SystemExit(0 if count > 0 else 1)"
 
       - name: Validate option quotes
         run: python -c "import json; data=json.load(open('dist/option-vertical-spread/opportunities.json', encoding='utf-8')); count=data.get('put_count', 0) + data.get('call_count', 0); print('option_quotes', count); raise SystemExit(0 if data.get('ok') and count > 0 else 1)"
+
+      - name: Validate sell put quotes
+        run: python -c "import json; data=json.load(open('dist/sell-put-monitor/board-quotes-dominant.json', encoding='utf-8')); rows=sum(len(g.get('rows', [])) for s in data.get('sections', {}).values() for g in s.get('groups', [])); print('sell_put_rows', rows); raise SystemExit(0 if rows > 0 else 1)"
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
