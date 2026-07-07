@@ -1,0 +1,14 @@
+{
+  "underlying_symbol": "AG",
+  "poll_seconds": 300,
+  "min_profit": 0,
+  "min_volume": 1,
+  "market": "cn",
+  "rqdata": {
+    "username": "",
+    "password": "",
+    "api_key": "",
+    "uri": "",
+    "addr": ["rqdatad-pro.ricequant.com", 16011]
+  }
+}
