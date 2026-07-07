@@ -1,0 +1,414 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #dde2ea;
+  --text: #1d2430;
+  --muted: #687386;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --gain: #047857;
+  --warn: #b45309;
+  --danger-bg: #fff1f2;
+  --danger: #be123c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.shell {
+  width: min(1480px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 26px;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-dark);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.controls,
+.summary,
+.tablePanel,
+.progressPanel,
+.notice {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(29, 36, 48, 0.05);
+}
+
+.progressPanel {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.progressHeader strong {
+  color: var(--accent-dark);
+}
+
+.progressTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf3;
+}
+
+.progressBar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(150px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+label,
+.wideControl {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: var(--text);
+  background: #fff;
+}
+
+select {
+  min-height: 162px;
+}
+
+.controlLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.symbolPicker {
+  max-height: 214px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px;
+}
+
+.symbolGroup {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid #edf0f4;
+}
+
+.symbolGroupTitle {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.symbolOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.symbolOption:hover {
+  border-color: rgba(15, 118, 110, 0.25);
+  background: #f3fbfa;
+}
+
+.symbolOption input {
+  width: auto;
+  margin: 0;
+}
+
+.allSymbolOption {
+  display: inline-flex;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
+input:disabled {
+  background: #f2f4f7;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.summary div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: #fff;
+}
+
+.summary span,
+.sectionTitle span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary strong {
+  font-size: 19px;
+}
+
+.notice {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.tablePanel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.positionSummary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.positionSummary strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.secondaryButton,
+.actionButton {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--accent-dark);
+}
+
+.secondaryButton:hover,
+.actionButton:hover {
+  border-color: rgba(15, 118, 110, 0.45);
+  background: #eefaf8;
+}
+
+.actionButton {
+  min-width: 76px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.actionButton.recorded {
+  border-color: rgba(4, 120, 87, 0.32);
+  background: #ecfdf5;
+  color: var(--gain);
+}
+
+.dangerButton {
+  color: var(--danger);
+}
+
+.dangerButton:hover {
+  border-color: rgba(190, 18, 60, 0.35);
+  background: var(--danger-bg);
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 1320px;
+  border-collapse: collapse;
+}
+
+.compact table {
+  min-width: 1320px;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f9fafb;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+th:first-child,
+td:first-child,
+th:nth-child(2),
+td:nth-child(2),
+th:nth-child(6),
+td:nth-child(6) {
+  text-align: left;
+}
+
+tbody tr:hover {
+  background: #f8fbfb;
+}
+
+.selectableRow {
+  cursor: pointer;
+}
+
+.selectableRow:hover {
+  outline: 1px solid rgba(15, 118, 110, 0.35);
+  outline-offset: -1px;
+}
+
+.verified {
+  background: #ecfdf5;
+}
+
+.candidate {
+  background: #fffbeb;
+}
+
+.good,
+.gain {
+  color: var(--gain);
+  font-weight: 700;
+}
+
+.warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.loss {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.empty {
+  text-align: center !important;
+  color: var(--muted);
+  padding: 28px 12px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    width: min(100vw - 20px, 1480px);
+    padding-top: 16px;
+  }
+
+  .topbar,
+  .sectionTitle {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .controls,
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
