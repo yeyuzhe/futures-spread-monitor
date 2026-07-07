@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>期货策略监控目录</title>
+  <title>策略监控目录</title>
   <style>
     :root {
       --bg: #f4f6f8;
@@ -136,8 +136,8 @@
 </head>
 <body>
   <header>
-    <h1>期货策略监控目录</h1>
-    <div class="subtitle">选择一个策略进入实时监控页面</div>
+    <h1>策略监控目录</h1>
+    <div class="subtitle">选择一个策略进入监控页面，数据由定时构建刷新。</div>
   </header>
   <main>
     <section class="strategy-grid" aria-label="策略列表">
@@ -152,6 +152,22 @@
             <span class="meta">rqdata</span>
             <span class="meta">5分钟刷新</span>
             <span class="meta">注销月份过滤</span>
+          </div>
+          <span class="open">进入策略</span>
+        </div>
+      </a>
+
+      <a class="strategy-card" href="option-vertical-spread/">
+        <div class="card-content">
+          <div class="card-top">
+            <h2 class="card-title">期权垂直价差监控</h2>
+            <span class="status">运行中</span>
+          </div>
+          <p class="card-desc">扫描商品期权 Put 与 Call 垂直价差机会，展示买入卖一、卖出买一、到期收益率和保证金口径年化收益。</p>
+          <div class="meta-row">
+            <span class="meta">商品期权</span>
+            <span class="meta">Put / Call</span>
+            <span class="meta">静态快照</span>
           </div>
           <span class="open">进入策略</span>
         </div>
