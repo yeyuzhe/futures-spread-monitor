@@ -32,6 +32,7 @@ CACHE_DIR = BASE_DIR / "data"
 CACHE_PATH = CACHE_DIR / "latest_quotes.json"
 DIST_DIR = BASE_DIR / "dist"
 STATIC_DATA_PATH = DIST_DIR / "data" / "latest_monitor.json"
+STRATEGY_DIR = DIST_DIR / "convertible-spread"
 MONTHS = list(range(1, 13))
 MONTH_NAMES = {i: f"{i}月" for i in MONTHS}
 ALL_MONTHS_LABEL = ",".join(str(month) for month in MONTHS)
@@ -942,7 +943,9 @@ def export_static(source: str = "rqdata", funding_rate: float | None = None) -> 
     payload["mode"] = "static"
     payload["generated_for"] = "github-pages"
     STATIC_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STRATEGY_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(BASE_DIR / "index.html", DIST_DIR / "index.html")
+    shutil.copy2(BASE_DIR / "convertible_spread.html", STRATEGY_DIR / "index.html")
     STATIC_DATA_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return payload
 
@@ -971,6 +974,8 @@ class MonitorHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path in {"/", "/index.html"}:
             self.path = "/index.html"
+        elif parsed.path in {"/convertible-spread", "/convertible-spread/"}:
+            self.path = "/convertible_spread.html"
         return super().do_GET()
 
     def send_json(self, payload: dict[str, Any], status: int = 200) -> None:
