@@ -13,7 +13,7 @@ import sys
 import time
 import traceback
 import zipfile
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -193,7 +193,9 @@ class Opportunity:
     hold_days: int
     capital_cost_rate: float
     storage_fee: float
+    storage_fee_daily: float
     fee_total: float
+    vat_rate: float
     quote_source: str
     is_profitable: bool
     delivery_near: str | None
@@ -319,6 +321,8 @@ def normalize_warrant_cancel_months(value: Any) -> str:
     if not text:
         return ""
     compact = re.sub(r"\s+", "", text)
+    if "不注销" in compact:
+        return ""
     if any(keyword in compact for keyword in ("每个交割月份", "每月", "全月", "全年")):
         return ALL_MONTHS_LABEL
     months = [int(item) for item in re.findall(r"(?<!\d)(1[0-2]|[1-9])月", compact)]
@@ -354,7 +358,7 @@ def xlsx_max_row(workbook: XlsxMonitorTemplate) -> int:
 
 
 def load_warrant_catalog() -> dict[str, dict[str, str]]:
-    paths = [path for path in (WARRANT_SUMMARY_XLSX, WARRANT_CANCEL_XLSX) if path.exists()]
+    paths = [path for path in (WARRANT_CANCEL_XLSX, WARRANT_SUMMARY_XLSX) if path.exists()]
     if not paths:
         return {}
     workbook = None
@@ -382,16 +386,31 @@ def load_warrant_catalog() -> dict[str, dict[str, str]]:
             product_name = workbook.value(f"B{row}")
             product = workbook.value(f"C{row}")
             cancel_months = workbook.value(f"D{row}")
+            suitability = workbook.value(f"G{row}")
+            storage_fee = workbook.value(f"H{row}")
+            vat_rate = workbook.value(f"I{row}")
         if not product:
             continue
         code = str(product).strip().upper()
         if not re.fullmatch(r"[A-Z]{1,3}", code):
             continue
+        storage_fee_text = ""
+        vat_rate_text = ""
+        if not use_summary_layout:
+            suitability_text = str(suitability or "").strip()
+            if "不适宜" in suitability_text or "适宜" not in suitability_text:
+                continue
+            storage_fee_number = parse_number(storage_fee)
+            storage_fee_text = str(storage_fee_number) if storage_fee_number is not None else "0"
+            vat_rate_number = parse_number(vat_rate)
+            vat_rate_text = str(vat_rate_number) if vat_rate_number is not None else "0"
         catalog[code] = {
             "product": code,
             "product_name": str(product_name).strip() if product_name else code,
             "exchange": normalize_exchange_label(exchange),
             "warrant_cancel_months": normalize_warrant_cancel_months(cancel_months),
+            "storage_fee": storage_fee_text,
+            "vat_rate": vat_rate_text,
         }
     return catalog
 
@@ -718,20 +737,19 @@ def build_catalog_quote_rows(
     template_quote_rows: dict[str, dict[int, dict[str, Any]]],
     catalog: dict[str, dict[str, str]],
 ) -> dict[str, dict[int, dict[str, Any]]]:
-    quote_rows = {
-        product: {month: dict(item) for month, item in months.items()}
-        for product, months in template_quote_rows.items()
-    }
+    quote_rows: dict[str, dict[int, dict[str, Any]]] = {}
     for product in catalog:
-        quote_rows.setdefault(product, {})
+        template_months = template_quote_rows.get(product, {})
+        quote_rows[product] = {}
         for month in MONTHS:
-            quote_rows[product].setdefault(
-                month,
-                {
+            template_item = template_months.get(month)
+            if template_item:
+                quote_rows[product][month] = dict(template_item)
+            else:
+                quote_rows[product][month] = {
                     "rtd_symbol": f"{product}{month:02d}M",
                     "cached_price": None,
-                },
-            )
+                }
     return quote_rows
 
 
@@ -839,6 +857,12 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
             )
 
         fees = parsed["fees"].get(product) or zero_fee_spec(product)
+        catalog_storage_fee = parse_number(product_meta.get("storage_fee"))
+        if catalog_storage_fee is not None:
+            fees = replace(fees, storage_fee=catalog_storage_fee)
+        catalog_vat_rate = parse_number(product_meta.get("vat_rate"))
+        if catalog_vat_rate is not None:
+            fees = replace(fees, vat_rate=catalog_vat_rate)
         delivery = parsed["delivery"].get(product, {})
         warrant_cancel_months = warrant_cancellations.get(product.upper(), "")
         cancel_months = parse_cancel_month_set(warrant_cancel_months)
@@ -864,14 +888,14 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
                 continue
             near_price = near.ask_price or near.price or 0.0
             far_price = far.bid_price or far.price or 0.0
-            spread = near_price - far_price
+            spread = far_price - near_price
             storage_cost = fees.storage_fee * days
             commission = near_price * fees.commission_rate if fees.commission_rate else fees.trade_fee
             finance_and_tax = near_price * (days * capital_cost_rate / 365 + fees.stamp_tax)
             fee_before_vat = storage_cost + commission + fees.delivery_fee + finance_and_tax
             fee_total = fee_before_vat * (1 + fees.vat_rate)
             cost_spread = -fee_total
-            net_profit = cost_spread - spread
+            net_profit = spread + cost_spread
             annualized_return = net_profit / near_price * 365 / days if near_price > 0 and days > 0 else 0.0
             exchange = near.exchange if near.exchange == far.exchange else f"{near.exchange}/{far.exchange}"
             opportunities.append(
@@ -899,7 +923,9 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
                     hold_days=days,
                     capital_cost_rate=capital_cost_rate,
                     storage_fee=storage_cost,
+                    storage_fee_daily=fees.storage_fee,
                     fee_total=fee_total,
+                    vat_rate=fees.vat_rate,
                     quote_source=near.source if near.source == far.source else f"{near.source}/{far.source}",
                     is_profitable=net_profit > 0,
                     delivery_near=delivery_near,

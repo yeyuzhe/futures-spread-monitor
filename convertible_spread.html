@@ -197,6 +197,19 @@
       font-size: 12px;
       font-weight: 650;
     }
+    .sort-button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: 0;
+    }
+    .sort-button:hover {
+      color: var(--accent);
+    }
     tbody tr:hover {
       background: #f8fbf8;
     }
@@ -305,8 +318,8 @@
               <th>交易所</th>
               <th>品种</th>
               <th>注销月份</th>
-              <th>月份</th>
-              <th>近月合约</th>
+              <th><button class="sort-button" type="button" data-sort="pair">月份</button></th>
+              <th><button class="sort-button" type="button" data-sort="near_symbol">近月合约</button></th>
               <th>近月卖一价</th>
               <th>卖一量</th>
               <th>远月合约</th>
@@ -315,14 +328,15 @@
               <th>实际价差</th>
               <th>成本价差</th>
               <th>净利润/吨</th>
-              <th>年化收益率</th>
+              <th><button class="sort-button" type="button" data-sort="annualized_return">年化收益率</button></th>
               <th>持有天数</th>
               <th>费用合计</th>
-              <th>仓储费</th>
+              <th>仓储费每天</th>
+              <th>增值税率</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="18" class="empty">正在读取表格和行情</td></tr>
+            <tr><td colspan="19" class="empty">正在读取表格和行情</td></tr>
           </tbody>
         </table>
       </div>
@@ -330,7 +344,7 @@
   </div>
 
   <script>
-    const state = { rows: [], selectedMonths: new Set(["all"]) };
+    const state = { rows: [], selectedMonths: new Set(["all"]), sortKey: null, sortDirection: "desc" };
     const els = {
       status: document.querySelector("#status"),
       warning: document.querySelector("#warning"),
@@ -368,6 +382,33 @@
       const [a1, a2] = a.replace("月", "").split("-").map(Number);
       const [b1, b2] = b.replace("月", "").split("-").map(Number);
       return (a1 - b1) || (a2 - b2);
+    }
+
+    function updateSortButtons() {
+      document.querySelectorAll(".sort-button").forEach(button => {
+        const label = button.textContent.replace(/[↑↓]/g, "").trim();
+        button.textContent = button.dataset.sort === state.sortKey
+          ? `${label} ${state.sortDirection === "asc" ? "↑" : "↓"}`
+          : label;
+      });
+    }
+
+    function compareRows(a, b) {
+      const exchangeCompare = (a.exchange || a.sector || "").localeCompare(b.exchange || b.sector || "", "zh-CN");
+      if (exchangeCompare) return exchangeCompare;
+      if (state.sortKey === "pair") {
+        const result = sortPairs(a.pair, b.pair);
+        return state.sortDirection === "asc" ? result : -result;
+      }
+      if (state.sortKey === "annualized_return") {
+        const result = Number(a.annualized_return || 0) - Number(b.annualized_return || 0);
+        return state.sortDirection === "asc" ? result : -result;
+      }
+      if (state.sortKey === "near_symbol") {
+        const result = String(a.near_symbol || "").localeCompare(String(b.near_symbol || ""), "zh-CN", { numeric: true });
+        return state.sortDirection === "asc" ? result : -result;
+      }
+      return Number(b.annualized_return || 0) - Number(a.annualized_return || 0);
     }
 
     function refreshFilters() {
@@ -448,17 +489,16 @@
         ].join(" ").toLowerCase().includes(kw);
       });
       if (!rows.length) {
-        els.tbody.innerHTML = `<tr><td colspan="18" class="empty">没有匹配的价差组合</td></tr>`;
+        els.tbody.innerHTML = `<tr><td colspan="19" class="empty">没有匹配的价差组合</td></tr>`;
+        updateSortButtons();
         return;
       }
-      const sortedRows = [...rows].sort((a, b) =>
-        (a.exchange || a.sector || "").localeCompare(b.exchange || b.sector || "", "zh-CN") || Number(b.annualized_return) - Number(a.annualized_return)
-      );
+      const sortedRows = [...rows].sort(compareRows);
       let currentSector = "";
       els.tbody.innerHTML = sortedRows.map(row => {
         const exchange = row.exchange || row.sector || "其他交易所";
         const sectorRow = exchange !== currentSector
-          ? `<tr class="sector-row"><td colspan="18">${exchange}</td></tr>`
+          ? `<tr class="sector-row"><td colspan="19">${exchange}</td></tr>`
           : "";
         currentSector = exchange;
         return `${sectorRow}
@@ -480,9 +520,11 @@
           <td class="${signedClass(row.annualized_return)}">${fmtPct(row.annualized_return)}</td>
           <td>${row.hold_days}</td>
           <td>${fmtNum(row.fee_total)}</td>
-          <td>${fmtNum(row.storage_fee)}</td>
+          <td>${fmtNum(row.storage_fee_daily)}</td>
+          <td>${fmtPct(row.vat_rate)}</td>
         </tr>`;
       }).join("");
+      updateSortButtons();
     }
 
     async function load() {
@@ -520,6 +562,18 @@
     els.sector.addEventListener("change", render);
     els.source.addEventListener("change", load);
     els.funding.addEventListener("change", load);
+    document.querySelectorAll(".sort-button").forEach(button => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.sort;
+        if (state.sortKey === key) {
+          state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+        } else {
+          state.sortKey = key;
+          state.sortDirection = key === "annualized_return" ? "desc" : "asc";
+        }
+        render();
+      });
+    });
     els.monthButton.addEventListener("click", () => {
       els.monthMenu.classList.toggle("open");
     });
