@@ -4,6 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>期货 Put/Call 板块监控</title>
+    <script>
+      (() => {
+        const key = "futuresSpreadMonitor.fullAccess";
+        if (window.localStorage.getItem(key) === "1") return;
+        if (window.prompt("请输入密码") === "12345") {
+          window.localStorage.setItem(key, "1");
+          return;
+        }
+        window.location.replace("../");
+      })();
+    </script>
     <link rel="stylesheet" href="styles.css?v=20260707a">
   </head>
   <body>

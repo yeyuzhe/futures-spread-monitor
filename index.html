@@ -39,6 +39,27 @@
       color: var(--muted);
       font-size: 14px;
     }
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .unlock-button {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 680;
+      padding: 8px 12px;
+    }
+    .unlock-button:hover {
+      border-color: #b9cdf5;
+      background: var(--accent-soft);
+    }
     main {
       max-width: 1180px;
       margin: 0 auto;
@@ -126,8 +147,10 @@
       font-size: 16px;
       line-height: 1;
     }
+    .is-hidden { display: none; }
     @media (max-width: 720px) {
       header { padding: 22px 18px 16px; }
+      .header-row { flex-direction: column; }
       main { padding: 18px 14px 34px; }
       h1 { font-size: 21px; }
       .strategy-card { min-height: 160px; }
@@ -136,8 +159,13 @@
 </head>
 <body>
   <header>
-    <h1>策略监控目录</h1>
-    <div class="subtitle">选择一个策略进入监控页面，数据由定时构建刷新。</div>
+    <div class="header-row">
+      <div>
+        <h1>策略监控目录</h1>
+        <div class="subtitle">选择一个策略进入监控页面，数据由定时构建刷新。</div>
+      </div>
+      <button id="unlockButton" class="unlock-button" type="button">显示完全版本</button>
+    </div>
   </header>
   <main>
     <section class="strategy-grid" aria-label="策略列表">
@@ -157,7 +185,7 @@
         </div>
       </a>
 
-      <a class="strategy-card" href="option-vertical-spread/">
+      <a class="strategy-card restricted-strategy is-hidden" href="option-vertical-spread/">
         <div class="card-content">
           <div class="card-top">
             <h2 class="card-title">期权垂直价差监控</h2>
@@ -173,7 +201,7 @@
         </div>
       </a>
 
-      <a class="strategy-card" href="sell-put-monitor/">
+      <a class="strategy-card restricted-strategy is-hidden" href="sell-put-monitor/">
         <div class="card-content">
           <div class="card-top">
             <h2 class="card-title">期货最低执行价 Sell Put 监控</h2>
@@ -190,5 +218,35 @@
       </a>
     </section>
   </main>
+  <script>
+    const ACCESS_KEY = "futuresSpreadMonitor.fullAccess";
+    const PASSWORD = "12345";
+    const unlockButton = document.querySelector("#unlockButton");
+    const restrictedStrategies = document.querySelectorAll(".restricted-strategy");
+
+    function hasAccess() {
+      return window.localStorage.getItem(ACCESS_KEY) === "1";
+    }
+
+    function applyAccessState() {
+      const unlocked = hasAccess();
+      restrictedStrategies.forEach(card => card.classList.toggle("is-hidden", !unlocked));
+      unlockButton.textContent = unlocked ? "完整版本已显示" : "显示完全版本";
+    }
+
+    unlockButton.addEventListener("click", () => {
+      if (!hasAccess()) {
+        const input = window.prompt("请输入密码");
+        if (input !== PASSWORD) {
+          window.alert("密码错误");
+          return;
+        }
+        window.localStorage.setItem(ACCESS_KEY, "1");
+      }
+      applyAccessState();
+    });
+
+    applyAccessState();
+  </script>
 </body>
 </html>
