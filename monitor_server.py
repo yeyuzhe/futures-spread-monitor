@@ -23,6 +23,8 @@ import xml.etree.ElementTree as ET
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_XLSX = BASE_DIR / "00-可转抛价差监测表.xlsx"
+WARRANT_CANCEL_XLSX = BASE_DIR / "商品期货仓单注销月份速查.xlsx"
+WARRANT_SUMMARY_XLSX = BASE_DIR / "商品期货标准仓单注销月份汇总.xlsx"
 CONFIG_PATH = BASE_DIR / "rqdata_config.local.json"
 QUOTE_JSON = BASE_DIR / "quotes.json"
 QUOTE_CSV = BASE_DIR / "quotes.csv"
@@ -32,6 +34,7 @@ DIST_DIR = BASE_DIR / "dist"
 STATIC_DATA_PATH = DIST_DIR / "data" / "latest_monitor.json"
 MONTHS = list(range(1, 13))
 MONTH_NAMES = {i: f"{i}月" for i in MONTHS}
+ALL_MONTHS_LABEL = ",".join(str(month) for month in MONTHS)
 SECTOR_MAP = {
     "SC": "油品",
     "FU": "油品",
@@ -155,6 +158,11 @@ class QuotePoint:
     rtd_symbol: str | None
     rq_symbol: str | None
     price: float | None
+    bid_price: float | None
+    bid_volume: float | None
+    ask_price: float | None
+    ask_volume: float | None
+    exchange: str
     source: str
     maturity_date: str | None = None
 
@@ -163,13 +171,20 @@ class QuotePoint:
 class Opportunity:
     product: str
     sector: str
+    exchange: str
+    product_name: str | None
+    warrant_cancel_months: str
     near_month: int
     far_month: int
     pair: str
     near_symbol: str | None
     far_symbol: str | None
     near_price: float
+    near_ask_price: float
+    near_ask_volume: float | None
     far_price: float
+    far_bid_price: float
+    far_bid_volume: float | None
     spread: float
     cost_spread: float
     net_profit: float
@@ -233,7 +248,12 @@ class XlsxMonitorTemplate:
         if first is None:
             raise ValueError("workbook has no sheets")
         rid = first.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
-        return "xl/" + rel_map[rid].lstrip("/")
+        target = rel_map[rid]
+        if target.startswith("/"):
+            return target.lstrip("/")
+        if target.startswith("xl/"):
+            return target
+        return "xl/" + target
 
     def value(self, ref: str) -> Any:
         return self.cells.get(ref, {}).get("value")
@@ -291,6 +311,97 @@ class XlsxMonitorTemplate:
         return {"fees": fees, "delivery": delivery, "quote_rows": quote_rows}
 
 
+def normalize_warrant_cancel_months(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    compact = re.sub(r"\s+", "", text)
+    if any(keyword in compact for keyword in ("每个交割月份", "每月", "全月", "全年")):
+        return ALL_MONTHS_LABEL
+    months = [int(item) for item in re.findall(r"(?<!\d)(1[0-2]|[1-9])月", compact)]
+    if months:
+        return ",".join(str(month) for month in sorted(set(months)))
+    return ""
+
+
+def normalize_exchange_label(value: Any) -> str:
+    text = str(value or "").strip()
+    upper = text.upper()
+    exchange_names = {
+        "SHFE": "SHFE/上期所",
+        "INE": "INE/能源中心",
+        "DCE": "DCE/大商所",
+        "CZCE": "CZCE/郑商所",
+        "GFEX": "GFEX/广期所",
+        "CFFEX": "CFFEX/中金所",
+    }
+    for code, label in exchange_names.items():
+        if code in upper or code in text:
+            return label
+    return text or "其他交易所"
+
+
+def xlsx_max_row(workbook: XlsxMonitorTemplate) -> int:
+    max_row = 1
+    for ref in workbook.cells:
+        match = re.match(r"[A-Z]+(\d+)$", ref)
+        if match:
+            max_row = max(max_row, int(match.group(1)))
+    return max_row
+
+
+def load_warrant_catalog() -> dict[str, dict[str, str]]:
+    paths = [path for path in (WARRANT_SUMMARY_XLSX, WARRANT_CANCEL_XLSX) if path.exists()]
+    if not paths:
+        return {}
+    workbook = None
+    path = paths[0]
+    for candidate in paths:
+        try:
+            workbook = XlsxMonitorTemplate(candidate)
+            path = candidate
+            break
+        except PermissionError:
+            continue
+    if workbook is None:
+        return {}
+    catalog: dict[str, dict[str, str]] = {}
+    use_summary_layout = path == WARRANT_SUMMARY_XLSX
+    max_row = xlsx_max_row(workbook)
+    for row in range(2, max_row + 1):
+        if use_summary_layout:
+            product = workbook.value(f"A{row}")
+            product_name = workbook.value(f"B{row}")
+            exchange = workbook.value(f"C{row}")
+            cancel_months = workbook.value(f"D{row}")
+        else:
+            exchange = workbook.value(f"A{row}")
+            product_name = workbook.value(f"B{row}")
+            product = workbook.value(f"C{row}")
+            cancel_months = workbook.value(f"D{row}")
+        if not product:
+            continue
+        code = str(product).strip().upper()
+        if not re.fullmatch(r"[A-Z]{1,3}", code):
+            continue
+        catalog[code] = {
+            "product": code,
+            "product_name": str(product_name).strip() if product_name else code,
+            "exchange": normalize_exchange_label(exchange),
+            "warrant_cancel_months": normalize_warrant_cancel_months(cancel_months),
+        }
+    return catalog
+
+
+def load_warrant_cancellations() -> dict[str, str]:
+    return {
+        code: item.get("warrant_cancel_months", "")
+        for code, item in load_warrant_catalog().items()
+    }
+
+
 def extract_rtd_symbol(formula: str | None) -> str | None:
     if not formula:
         return None
@@ -326,8 +437,33 @@ def load_config() -> dict[str, Any]:
     return config or {"enabled": False}
 
 
-def load_file_quotes() -> dict[str, float]:
-    quotes: dict[str, float] = {}
+def make_quote(
+    price: float | None = None,
+    bid_price: float | None = None,
+    ask_price: float | None = None,
+    bid_volume: float | None = None,
+    ask_volume: float | None = None,
+) -> dict[str, float | None]:
+    if price is None:
+        if bid_price is not None and ask_price is not None:
+            price = (bid_price + ask_price) / 2
+        else:
+            price = bid_price if bid_price is not None else ask_price
+    if bid_price is None:
+        bid_price = price
+    if ask_price is None:
+        ask_price = price
+    return {
+        "price": price,
+        "bid_price": bid_price,
+        "ask_price": ask_price,
+        "bid_volume": bid_volume,
+        "ask_volume": ask_volume,
+    }
+
+
+def load_file_quotes() -> dict[str, dict[str, float | None]]:
+    quotes: dict[str, dict[str, float | None]] = {}
     for path in (QUOTE_JSON, CACHE_PATH):
         if path.exists():
             try:
@@ -335,17 +471,29 @@ def load_file_quotes() -> dict[str, float]:
                 rows = data.get("quotes", data) if isinstance(data, dict) else data
                 if isinstance(rows, dict):
                     for key, value in rows.items():
-                        price = parse_number(value.get("price") if isinstance(value, dict) else value)
+                        if isinstance(value, dict):
+                            price = parse_number(value.get("price") or value.get("last") or value.get("last_price"))
+                            bid_price = parse_number(value.get("bid_price") or value.get("bid1") or value.get("b1"))
+                            ask_price = parse_number(value.get("ask_price") or value.get("ask1") or value.get("a1"))
+                            bid_volume = parse_number(value.get("bid_volume") or value.get("bid_volume1") or value.get("b1_v"))
+                            ask_volume = parse_number(value.get("ask_volume") or value.get("ask_volume1") or value.get("a1_v"))
+                        else:
+                            price = parse_number(value)
+                            bid_price = ask_price = bid_volume = ask_volume = None
                         if price is not None:
-                            quotes[str(key)] = price
+                            quotes[str(key)] = make_quote(price, bid_price, ask_price, bid_volume, ask_volume)
                 elif isinstance(rows, list):
                     for row in rows:
                         if not isinstance(row, dict):
                             continue
                         key = row.get("rtd_symbol") or row.get("symbol") or row.get("order_book_id")
                         price = parse_number(row.get("price") or row.get("last") or row.get("last_price"))
+                        bid_price = parse_number(row.get("bid_price") or row.get("bid1") or row.get("b1"))
+                        ask_price = parse_number(row.get("ask_price") or row.get("ask1") or row.get("a1"))
+                        bid_volume = parse_number(row.get("bid_volume") or row.get("bid_volume1") or row.get("b1_v"))
+                        ask_volume = parse_number(row.get("ask_volume") or row.get("ask_volume1") or row.get("a1_v"))
                         if key and price is not None:
-                            quotes[str(key)] = price
+                            quotes[str(key)] = make_quote(price, bid_price, ask_price, bid_volume, ask_volume)
             except Exception:
                 pass
     if QUOTE_CSV.exists():
@@ -354,8 +502,12 @@ def load_file_quotes() -> dict[str, float]:
                 for row in csv.DictReader(fh):
                     key = row.get("rtd_symbol") or row.get("symbol") or row.get("order_book_id")
                     price = parse_number(row.get("price") or row.get("last") or row.get("last_price"))
+                    bid_price = parse_number(row.get("bid_price") or row.get("bid1") or row.get("b1"))
+                    ask_price = parse_number(row.get("ask_price") or row.get("ask1") or row.get("a1"))
+                    bid_volume = parse_number(row.get("bid_volume") or row.get("bid_volume1") or row.get("b1_v"))
+                    ask_volume = parse_number(row.get("ask_volume") or row.get("ask_volume1") or row.get("a1_v"))
                     if key and price is not None:
-                        quotes[str(key)] = price
+                        quotes[str(key)] = make_quote(price, bid_price, ask_price, bid_volume, ask_volume)
         except Exception:
             pass
     return quotes
@@ -383,6 +535,7 @@ class RqdataQuoteSource:
         self.market = config.get("market") or "cn"
         self.instrument_map: dict[tuple[str, int], str] = {}
         self.instrument_dates: dict[str, str] = {}
+        self.instrument_exchanges: dict[str, str] = {}
         self.errors: list[str] = []
 
     def enabled(self) -> bool:
@@ -438,17 +591,24 @@ class RqdataQuoteSource:
                     row = sub.iloc[0]
                     rq_id = str(row["order_book_id"])
                     self.instrument_map[(underlying.upper(), month)] = rq_id
+                    for exchange_col in ("exchange", "exchange_id", "listed_exchange", "exchange_name"):
+                        if exchange_col in row and row.get(exchange_col) is not None:
+                            self.instrument_exchanges[rq_id] = normalize_exchange_label(row.get(exchange_col))
+                            break
                     maturity = row.get("maturity_date")
                     if maturity is not None and not pd.isna(maturity):
                         self.instrument_dates[rq_id] = maturity.date().isoformat()
         except Exception as exc:
             self.errors.append(f"instrument map failed: {exc}")
 
-    def fetch(self, rtd_symbols: list[str]) -> tuple[dict[str, float], dict[str, str], dict[str, str]]:
-        prices: dict[str, float] = {}
+    def fetch(
+        self,
+        rtd_symbols: list[str],
+    ) -> tuple[dict[str, dict[str, float | None]], dict[str, str], dict[str, str], dict[str, str]]:
+        quotes: dict[str, dict[str, float | None]] = {}
         symbol_map: dict[str, str] = {}
         if not self.init():
-            return prices, symbol_map, {}
+            return quotes, symbol_map, {}, {}
         self.load_instrument_map(rtd_symbols)
         rq_ids: list[str] = []
         rq_to_rtd: dict[str, str] = {}
@@ -464,7 +624,7 @@ class RqdataQuoteSource:
             rq_to_rtd[rq_id] = rtd
             rq_ids.append(rq_id)
         if not rq_ids:
-            return prices, symbol_map, {}
+            return quotes, symbol_map, {}, {}
         try:
             import rqdatac
 
@@ -473,12 +633,12 @@ class RqdataQuoteSource:
                 snapshots = [snapshots]
             for fallback_rq_id, snap in zip(rq_ids, snapshots):
                 rq_id = getattr(snap, "order_book_id", None) or getattr(snap, "_order_book_id", None) or fallback_rq_id
-                price = extract_snapshot_price(snap)
-                if price is not None and rq_id in rq_to_rtd:
-                    prices[rq_to_rtd[rq_id]] = price
+                quote = extract_snapshot_quote(snap)
+                if quote.get("price") is not None and rq_id in rq_to_rtd:
+                    quotes[rq_to_rtd[rq_id]] = quote
         except Exception as exc:
             self.errors.append(f"current_snapshot failed: {exc}")
-        if prices:
+        if quotes:
             CACHE_DIR.mkdir(exist_ok=True)
             CACHE_PATH.write_text(
                 json.dumps(
@@ -486,8 +646,8 @@ class RqdataQuoteSource:
                         "updated_at": now_cn_iso(),
                         "updated_at_label": now_cn_label(),
                         "quotes": {
-                            rtd: {"price": price, "order_book_id": symbol_map.get(rtd)}
-                            for rtd, price in sorted(prices.items())
+                            rtd: {**quote, "order_book_id": symbol_map.get(rtd)}
+                            for rtd, quote in sorted(quotes.items())
                         },
                     },
                     ensure_ascii=False,
@@ -495,7 +655,17 @@ class RqdataQuoteSource:
                 ),
                 encoding="utf-8",
             )
-        return prices, symbol_map, {rtd: self.instrument_dates.get(rq_id) for rtd, rq_id in symbol_map.items() if self.instrument_dates.get(rq_id)}
+        maturity_map = {
+            rtd: self.instrument_dates.get(rq_id)
+            for rtd, rq_id in symbol_map.items()
+            if self.instrument_dates.get(rq_id)
+        }
+        exchange_map = {
+            rtd: self.instrument_exchanges.get(rq_id)
+            for rtd, rq_id in symbol_map.items()
+            if self.instrument_exchanges.get(rq_id)
+        }
+        return quotes, symbol_map, maturity_map, exchange_map
 
 
 def extract_snapshot_price(snapshot: Any) -> float | None:
@@ -513,46 +683,143 @@ def extract_snapshot_price(snapshot: Any) -> float | None:
     return None
 
 
+def extract_snapshot_field(snapshot: Any, names: tuple[str, ...]) -> float | None:
+    if isinstance(snapshot, dict):
+        sources = [snapshot]
+    else:
+        sources = [getattr(snapshot, "__dict__", {})]
+    for name in names:
+        value = getattr(snapshot, name, None)
+        parsed = parse_number(value[0] if isinstance(value, (list, tuple)) and value else value)
+        if parsed is not None:
+            return parsed
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for key, raw in source.items():
+                if str(key).lower() == name.lower():
+                    parsed = parse_number(raw[0] if isinstance(raw, (list, tuple)) and raw else raw)
+                    if parsed is not None:
+                        return parsed
+    return None
+
+
+def extract_snapshot_quote(snapshot: Any) -> dict[str, float | None]:
+    price = extract_snapshot_price(snapshot)
+    bid_price = extract_snapshot_field(snapshot, ("bid_price1", "bid1", "b1", "bid_price", "bid", "bids"))
+    ask_price = extract_snapshot_field(snapshot, ("ask_price1", "ask1", "a1", "ask_price", "ask", "asks"))
+    bid_volume = extract_snapshot_field(snapshot, ("bid_volume1", "bid_vol1", "b1_v", "bid_volume", "bid_vol", "bid_vols"))
+    ask_volume = extract_snapshot_field(snapshot, ("ask_volume1", "ask_vol1", "a1_v", "ask_volume", "ask_vol", "ask_vols"))
+    return make_quote(price, bid_price, ask_price, bid_volume, ask_volume)
+
+
+def build_catalog_quote_rows(
+    template_quote_rows: dict[str, dict[int, dict[str, Any]]],
+    catalog: dict[str, dict[str, str]],
+) -> dict[str, dict[int, dict[str, Any]]]:
+    quote_rows = {
+        product: {month: dict(item) for month, item in months.items()}
+        for product, months in template_quote_rows.items()
+    }
+    for product in catalog:
+        quote_rows.setdefault(product, {})
+        for month in MONTHS:
+            quote_rows[product].setdefault(
+                month,
+                {
+                    "rtd_symbol": f"{product}{month:02d}M",
+                    "cached_price": None,
+                },
+            )
+    return quote_rows
+
+
+def maturity_days(near_date: str | None, far_date: str | None) -> int | None:
+    if not near_date or not far_date:
+        return None
+    try:
+        near = dt.date.fromisoformat(near_date)
+        far = dt.date.fromisoformat(far_date)
+    except ValueError:
+        return None
+    days = (far - near).days
+    return days if days > 0 else None
+
+
+def zero_fee_spec(product: str) -> FeeSpec:
+    return FeeSpec(
+        symbol=product,
+        vat_rate=0.0,
+        storage_fee=0.0,
+        commission_rate=0.0,
+        trade_fee=0.0,
+        delivery_fee=0.0,
+        storage_fee_gross=0.0,
+        stamp_tax=0.0,
+    )
+
+
+def parse_cancel_month_set(months_text: str | None) -> set[int]:
+    if not months_text:
+        return set()
+    months: set[int] = set()
+    for item in str(months_text).split(","):
+        month = parse_number(item)
+        if month is not None and 1 <= int(month) <= 12:
+            months.add(int(month))
+    return months
+
+
 def build_monitor(source: str = "auto", funding_rate: float | None = None) -> dict[str, Any]:
     template = XlsxMonitorTemplate(TEMPLATE_XLSX)
     parsed = template.parse()
+    warrant_catalog = load_warrant_catalog()
+    warrant_cancellations = {
+        code: item.get("warrant_cancel_months", "-")
+        for code, item in warrant_catalog.items()
+    }
+    quote_rows = build_catalog_quote_rows(parsed["quote_rows"], warrant_catalog)
     file_quotes = load_file_quotes()
     rtd_symbols = sorted(
         {
             item["rtd_symbol"]
-            for product in parsed["quote_rows"].values()
+            for product in quote_rows.values()
             for item in product.values()
             if item.get("rtd_symbol")
         }
     )
-    rq_prices: dict[str, float] = {}
+    rq_quotes: dict[str, dict[str, float | None]] = {}
     rq_symbol_map: dict[str, str] = {}
     rq_maturity_map: dict[str, str] = {}
+    rq_exchange_map: dict[str, str] = {}
     rq_errors: list[str] = []
     if source in {"auto", "rqdata"}:
         rq = RqdataQuoteSource(load_config())
-        rq_prices, rq_symbol_map, rq_maturity_map = rq.fetch(rtd_symbols)
+        rq_quotes, rq_symbol_map, rq_maturity_map, rq_exchange_map = rq.fetch(rtd_symbols)
         rq_errors = rq.errors
 
     quote_grid: dict[str, dict[int, QuotePoint]] = {}
     opportunities: list[Opportunity] = []
     capital_cost_rate = funding_rate if funding_rate is not None else (template.number("N49") or 0.03)
 
-    for product, month_items in parsed["quote_rows"].items():
+    for product, month_items in quote_rows.items():
+        product_meta = warrant_catalog.get(product.upper(), {})
+        product_exchange = product_meta.get("exchange") or SECTOR_MAP.get(product, "其他")
         quote_grid[product] = {}
         for month in MONTHS:
             item = month_items.get(month)
             if not item:
                 continue
             rtd = item.get("rtd_symbol")
-            price = None
+            quote: dict[str, float | None] | None = None
             quote_source = "none"
-            if source != "excel" and rtd and rtd in rq_prices:
-                price, quote_source = rq_prices[rtd], "rqdata"
+            if source != "excel" and rtd and rtd in rq_quotes:
+                quote, quote_source = rq_quotes[rtd], "rqdata"
             elif source == "auto" and rtd and rtd in file_quotes:
-                price, quote_source = file_quotes[rtd], "file"
+                quote, quote_source = file_quotes[rtd], "file"
             elif source != "rqdata":
-                price, quote_source = item.get("cached_price"), "excel-cache"
+                quote, quote_source = make_quote(item.get("cached_price")), "excel-cache"
+            price = quote.get("price") if quote else None
             if price is None or price <= 0:
                 continue
             quote_grid[product][month] = QuotePoint(
@@ -561,28 +828,41 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
                 rtd_symbol=rtd,
                 rq_symbol=rq_symbol_map.get(rtd) if rtd else None,
                 price=float(price),
+                bid_price=quote.get("bid_price") if quote else None,
+                bid_volume=quote.get("bid_volume") if quote else None,
+                ask_price=quote.get("ask_price") if quote else None,
+                ask_volume=quote.get("ask_volume") if quote else None,
+                exchange=rq_exchange_map.get(rtd) or product_exchange,
                 source=quote_source,
                 maturity_date=rq_maturity_map.get(rtd) if rtd else None,
             )
 
-        fees = parsed["fees"].get(product)
+        fees = parsed["fees"].get(product) or zero_fee_spec(product)
         delivery = parsed["delivery"].get(product, {})
-        if not fees:
-            continue
+        warrant_cancel_months = warrant_cancellations.get(product.upper(), "")
+        cancel_months = parse_cancel_month_set(warrant_cancel_months)
         valid_months = [
             m for m in MONTHS
-            if m in quote_grid[product] and m in delivery and quote_grid[product][m].price is not None
+            if m in quote_grid[product] and quote_grid[product][m].price is not None
         ]
+        valid_months.sort(key=lambda m: quote_grid[product][m].maturity_date or f"9999-{m:02d}")
         for near_m, far_m in zip(valid_months, valid_months[1:]):
-            days = int(round(delivery[far_m] - delivery[near_m]))
-            if days <= 0:
+            if far_m in cancel_months:
                 continue
             near = quote_grid[product][near_m]
             far = quote_grid[product][far_m]
             if near.maturity_date and far.maturity_date and far.maturity_date <= near.maturity_date:
                 continue
-            near_price = near.price or 0.0
-            far_price = far.price or 0.0
+            if near_m in delivery and far_m in delivery:
+                days = int(round(delivery[far_m] - delivery[near_m]))
+                delivery_near, delivery_far = cycle_delivery_dates(delivery.get(near_m), delivery.get(far_m))
+            else:
+                days = maturity_days(near.maturity_date, far.maturity_date) or 0
+                delivery_near, delivery_far = near.maturity_date, far.maturity_date
+            if days <= 0:
+                continue
+            near_price = near.ask_price or near.price or 0.0
+            far_price = far.bid_price or far.price or 0.0
             spread = near_price - far_price
             storage_cost = fees.storage_fee * days
             commission = near_price * fees.commission_rate if fees.commission_rate else fees.trade_fee
@@ -592,18 +872,25 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
             cost_spread = -fee_total
             net_profit = cost_spread - spread
             annualized_return = net_profit / near_price * 365 / days if near_price > 0 and days > 0 else 0.0
-            delivery_near, delivery_far = cycle_delivery_dates(delivery.get(near_m), delivery.get(far_m))
+            exchange = near.exchange if near.exchange == far.exchange else f"{near.exchange}/{far.exchange}"
             opportunities.append(
                 Opportunity(
                     product=product,
-                    sector=SECTOR_MAP.get(product, "其他"),
+                    sector=exchange,
+                    exchange=exchange,
+                    product_name=product_meta.get("product_name"),
+                    warrant_cancel_months=warrant_cancel_months,
                     near_month=near_m,
                     far_month=far_m,
                     pair=f"{near_m}-{far_m}月",
                     near_symbol=near.rq_symbol or near.rtd_symbol,
                     far_symbol=far.rq_symbol or far.rtd_symbol,
                     near_price=near_price,
+                    near_ask_price=near_price,
+                    near_ask_volume=near.ask_volume,
                     far_price=far_price,
+                    far_bid_price=far_price,
+                    far_bid_volume=far.bid_volume,
                     spread=spread,
                     cost_spread=cost_spread,
                     net_profit=net_profit,
@@ -627,7 +914,7 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
         "timezone": "Asia/Shanghai",
         "source_requested": source,
         "quote_status": {
-            "rqdata_prices": len(rq_prices),
+            "rqdata_prices": len(rq_quotes),
             "file_quotes": len(file_quotes),
             "rqdata_errors": rq_errors[-5:],
         },
@@ -638,7 +925,10 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
             "spreads": len(opportunities),
             "profitable": len(profitable),
             "best_return": profitable[0].annualized_return if profitable else (opportunities[0].annualized_return if opportunities else None),
+            "warrant_cancel_products": len(warrant_cancellations),
         },
+        "warrant_cancellations": warrant_cancellations,
+        "warrant_catalog": warrant_catalog,
         "quotes": {
             product: {str(month): asdict(point) for month, point in months.items()}
             for product, months in quote_grid.items()
