@@ -872,7 +872,7 @@ def build_monitor(source: str = "auto", funding_rate: float | None = None) -> di
         ]
         valid_months.sort(key=lambda m: quote_grid[product][m].maturity_date or f"9999-{m:02d}")
         for near_m, far_m in zip(valid_months, valid_months[1:]):
-            if far_m in cancel_months:
+            if near_m in cancel_months:
                 continue
             near = quote_grid[product][near_m]
             far = quote_grid[product][far_m]
