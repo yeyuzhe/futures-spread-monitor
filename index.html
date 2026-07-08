@@ -223,6 +223,9 @@
     const PASSWORD = "12345";
     const unlockButton = document.querySelector("#unlockButton");
     const restrictedStrategies = document.querySelectorAll(".restricted-strategy");
+    if (new URLSearchParams(window.location.search).get("full") === "1") {
+      window.localStorage.setItem(ACCESS_KEY, "1");
+    }
 
     function hasAccess() {
       return window.localStorage.getItem(ACCESS_KEY) === "1";
@@ -246,7 +249,7 @@
         return;
       }
       window.localStorage.setItem(ACCESS_KEY, "1");
-      applyAccessState();
+      window.location.href = `${window.location.pathname}?full=1`;
     });
 
     applyAccessState();
