@@ -56,6 +56,26 @@ function plainText(value) {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
+function formatBeijingTime(value, assumeUtc = false) {
+  if (value === null || value === undefined || value === "") return "-";
+  const text = String(value).trim();
+  if (!text) return "-";
+  const normalized = text.includes("T") ? text : text.replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized);
+  const date = new Date(hasTimezone ? normalized : assumeUtc ? `${normalized}Z` : `${normalized}+08:00`);
+  if (Number.isNaN(date.getTime())) return `${text} 北京时间`;
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date).replace(/\//g, "-") + " 北京时间";
+}
+
 function td(value, className = "") {
   const cell = document.createElement("td");
   if (className) cell.className = className;
@@ -188,7 +208,7 @@ function renderGroups(side, groups) {
       tr.appendChild(td(percentText(row.annualized_cash_yield), "yield"));
       tr.appendChild(td(percentText(row.margin_yield), "levered"));
       tr.appendChild(td(percentText(row.annualized_margin_yield), "levered"));
-      tr.appendChild(td(plainText(row.updated_at)));
+      tr.appendChild(td(formatBeijingTime(row.updated_at, true)));
       state.body.appendChild(tr);
     });
   });
@@ -273,11 +293,11 @@ async function refresh() {
       const section = payload.sections?.[side] || { groups: [], errors: [] };
       renderGroups(side, section.groups || []);
       errors.push(...(section.errors || []).map((error) => ({ ...error, option_side: side })));
-      sideState[side].status.textContent = `最近更新 ${payload.updated_at || "-"}`;
+      sideState[side].status.textContent = `最近更新 ${formatBeijingTime(payload.updated_at, true)}`;
     });
     if (!errors.length) renderErrors([]);
     else renderErrors(errors);
-    statusText.textContent = `最近更新 ${payload.updated_at || "-"}`;
+    statusText.textContent = `最近更新 ${formatBeijingTime(payload.updated_at, true)}`;
     updateProgress({ percent: 100, message: "行情加载完成" });
   } catch (error) {
     renderErrors([{ message: error.message }]);
