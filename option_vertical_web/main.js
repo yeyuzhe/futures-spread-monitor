@@ -66,6 +66,26 @@ function plainText(value) {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
+function formatBeijingTime(value, assumeUtc = false) {
+  if (value === null || value === undefined || value === "") return "-";
+  const text = String(value).trim();
+  if (!text) return "-";
+  const normalized = text.includes("T") ? text : text.replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized);
+  const date = new Date(hasTimezone ? normalized : assumeUtc ? `${normalized}Z` : `${normalized}+08:00`);
+  if (Number.isNaN(date.getTime())) return `${text} 北京时间`;
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date).replace(/\//g, "-") + " 北京时间";
+}
+
 function td(value, className = "") {
   const cell = document.createElement("td");
   if (className) cell.className = className;
@@ -594,7 +614,7 @@ function renderSummary(payload) {
   putCandidateCount.textContent = plainText(payload.put_candidate_count);
   callCandidateCount.textContent = plainText(payload.call_candidate_count);
   verifiedCount.textContent = plainText(payload.verified_count);
-  updatedAt.textContent = plainText(payload.updated_at);
+  updatedAt.textContent = formatBeijingTime(payload.updated_at, true);
 }
 
 function renderOpportunityRows(body, rows, emptyText) {
@@ -611,7 +631,7 @@ function renderOpportunityRows(body, rows, emptyText) {
     const tr = document.createElement("tr");
     tr.className = row.verified ? "verified selectableRow" : "candidate selectableRow";
     tr.addEventListener("click", () => renderQuotesForOpportunity(row));
-    const tickTime = [row.tick_buy_time, row.tick_sell_time].filter(Boolean).join(" / ");
+    const tickTime = [row.tick_buy_time, row.tick_sell_time].filter(Boolean).map((item) => formatBeijingTime(item)).join(" / ");
     const expiryReturn = row.tick_expiry_return ?? row.expiry_return;
     const annualizedReturn = row.tick_annualized_expiry_return ?? row.annualized_expiry_return;
     const leveragedReturn = row.tick_annualized_margin_expiry_return
@@ -701,7 +721,7 @@ function renderQuotes(rows) {
     tr.appendChild(td(numberText(row.ask_volume, 0)));
     tr.appendChild(td(numberText(row.last)));
     tr.appendChild(td(plainText(row.maturity_date)));
-    tr.appendChild(td(plainText(row.quote_time)));
+    tr.appendChild(td(formatBeijingTime(row.quote_time)));
     quotesBody.appendChild(tr);
   });
 }
