@@ -998,10 +998,56 @@ class MonitorHandler(SimpleHTTPRequestHandler):
                     status=500,
                 )
             return
+        if parsed.path == "/api/option-vertical-spread/opportunities":
+            query = parse_qs(parsed.query)
+            try:
+                from option_vertical_app import RqdataAdapter, all_option_symbols, load_config as load_option_config
+
+                config = load_option_config()
+                adapter = RqdataAdapter(config)
+                symbols_param = query.get("symbols", query.get("symbol", ["ALL"]))[0].strip().upper()
+                if symbols_param in {"", "ALL", "__ALL__"}:
+                    symbols = all_option_symbols(config)
+                else:
+                    symbols = [item.strip().upper() for item in re.split(r"[,，\s]+", symbols_param) if item.strip()]
+                payload = adapter.scan_many_arbitrage(symbols)
+                payload["data_mode"] = "live"
+                payload["refreshed_at"] = now_cn_label()
+                static_path = STATIC_DATA_PATH.parent.parent / "option-vertical-spread" / "opportunities.json"
+                if static_path.parent.exists():
+                    static_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                self.send_json(payload)
+            except Exception as exc:
+                self.send_json(
+                    {
+                        "ok": False,
+                        "message": str(exc),
+                        "updated_at": now_cn_iso(),
+                        "data_mode": "live",
+                        "puts": [],
+                        "calls": [],
+                        "put_opportunities": [],
+                        "call_opportunities": [],
+                        "opportunities": [],
+                        "errors": [str(exc)],
+                    },
+                    status=500,
+                )
+            return
         if parsed.path in {"/", "/index.html"}:
             self.path = "/index.html"
         elif parsed.path in {"/convertible-spread", "/convertible-spread/"}:
             self.path = "/convertible_spread.html"
+        elif parsed.path.startswith("/data/"):
+            self.path = "/dist" + parsed.path
+        elif parsed.path in {"/option-vertical-spread", "/option-vertical-spread/"}:
+            self.path = "/dist/option-vertical-spread/index.html"
+        elif parsed.path.startswith("/option-vertical-spread/"):
+            self.path = "/dist" + parsed.path
+        elif parsed.path in {"/sell-put-monitor", "/sell-put-monitor/"}:
+            self.path = "/dist/sell-put-monitor/index.html"
+        elif parsed.path.startswith("/sell-put-monitor/"):
+            self.path = "/dist" + parsed.path
         return super().do_GET()
 
     def send_json(self, payload: dict[str, Any], status: int = 200) -> None:
