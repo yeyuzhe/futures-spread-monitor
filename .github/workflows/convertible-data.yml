@@ -1,0 +1,69 @@
+name: Refresh Convertible Spread Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: convertible-spread-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: source
+        run: pip install -r requirements.txt
+
+      - name: Build convertible spread data
+        working-directory: source
+        env:
+          RQDATA_API_KEY: ${{ secrets.RQDATA_API_KEY }}
+          RQDATA_USERNAME: ${{ secrets.RQDATA_USERNAME }}
+          RQDATA_PASSWORD: ${{ secrets.RQDATA_PASSWORD }}
+          RQDATA_URI: ${{ secrets.RQDATA_URI }}
+          RQDATA_ADDR_HOST: rqdatad-pro.ricequant.com
+          RQDATA_ADDR_PORT: "16011"
+          RQDATA_MARKET: cn
+        run: python monitor_server.py --export-static --source auto --funding-rate 0.03
+
+      - name: Validate data
+        working-directory: source
+        run: python -c "import json; data=json.load(open('dist/data/latest_monitor.json', encoding='utf-8')); count=data.get('quote_status', {}).get('rqdata_prices', 0); print('rqdata_prices', count); raise SystemExit(0 if count > 0 else 1)"
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Publish data only
+        shell: bash
+        run: |
+          mkdir -p gh-pages/data
+          cp source/dist/data/latest_monitor.json gh-pages/data/latest_monitor.json
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/latest_monitor.json
+          if git diff --cached --quiet; then
+            echo "No data changes"
+          else
+            git commit -m "update convertible spread data"
+            git push origin gh-pages
+          fi
