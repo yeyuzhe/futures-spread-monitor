@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>期权垂直价差套利监控</title>
+    <script>
+      (() => {
+        const key = "futuresSpreadMonitor.fullAccess";
+        if (window.localStorage.getItem(key) === "1") return;
+        if (window.prompt("请输入密码") === "12345") {
+          window.localStorage.setItem(key, "1");
+          return;
+        }
+        window.location.replace("../");
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>期权垂直价差套利监控</h1>
+          <p id="statusText">读取配置中</p>
+        </div>
+        <button id="refreshButton" type="button">立即刷新</button>
+      </header>
+
+      <section id="progressPanel" class="progressPanel" hidden aria-label="刷新进度">
+        <div class="progressHeader">
+          <span id="progressText">准备刷新</span>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progressTrack">
+          <div id="progressBar" class="progressBar"></div>
+        </div>
+      </section>
+
+      <section id="errorPanel" class="notice" hidden></section>
+
+      <section class="controls" aria-label="监控参数">
+        <div class="wideControl">
+          <span class="controlLabel">品种选择</span>
+          <div id="symbolsInput" class="symbolPicker" role="group" aria-label="品种选择"></div>
+        </div>
+        <label>
+          刷新间隔(秒)
+          <input id="intervalInput" type="number" min="30" step="30" value="300">
+        </label>
+        <label>
+          最小价差
+          <input id="minProfitInput" type="number" min="0" step="0.2" value="0" disabled>
+        </label>
+        <label>
+          最小挂单量
+          <input id="minVolumeInput" type="number" min="0" step="1" value="1" disabled>
+        </label>
+      </section>
+
+      <section class="summary" aria-label="扫描摘要">
+        <div><span>主力合约</span><strong id="futureContract">-</strong></div>
+        <div><span>Put 数量</span><strong id="putCount">-</strong></div>
+        <div><span>Call 数量</span><strong id="callCount">-</strong></div>
+        <div><span>Put 机会</span><strong id="putCandidateCount">-</strong></div>
+        <div><span>Call 机会</span><strong id="callCandidateCount">-</strong></div>
+        <div><span>tick 通过</span><strong id="verifiedCount">-</strong></div>
+        <div><span>更新时间</span><strong id="updatedAt">-</strong></div>
+      </section>
+
+      <section class="tablePanel" aria-label="持仓用户面板">
+        <div class="sectionTitle">
+          <div>
+            <h2>持仓用户面板</h2>
+            <span>扫描后自动持有当前全部可做垂直价差套利合约，并汇总保证金占用</span>
+          </div>
+          <div class="positionSummary">
+            <span>持仓对数 <strong id="positionCount">0</strong></span>
+            <span>保证金合计 <strong id="positionMarginTotal">-</strong></span>
+            <span>持仓盈亏 <strong id="positionProfitTotal">-</strong></span>
+            <button id="clearPositionsButton" class="secondaryButton" type="button">清空持仓</button>
+          </div>
+        </div>
+        <div class="tableWrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>下单成交时间</th>
+                <th>品种</th>
+                <th>类型</th>
+                <th>主力</th>
+                <th>买入合约</th>
+                <th>买入价</th>
+                <th>卖出合约</th>
+                <th>卖出价</th>
+                <th>入场价差</th>
+                <th>持仓盈利</th>
+                <th>到期日</th>
+                <th>剩余到期</th>
+                <th>占用保证金</th>
+                <th>年化保证金收益</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="positionsBody">
+              <tr><td colspan="15" class="empty">尚未记录持仓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tablePanel" aria-label="交易记录">
+        <div class="sectionTitle">
+          <div>
+            <h2>交易记录</h2>
+            <span>记录自动移出持仓的价差交易，并汇总已实现盈亏</span>
+          </div>
+          <div class="positionSummary">
+            <span>交易笔数 <strong id="tradeCount">0</strong></span>
+            <span>已实现盈亏 <strong id="tradeProfitTotal">-</strong></span>
+            <button id="clearTradesButton" class="secondaryButton" type="button">清空记录</button>
+          </div>
+        </div>
+        <div class="tableWrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>入场时间</th>
+                <th>出场时间</th>
+                <th>品种</th>
+                <th>类型</th>
+                <th>买入合约</th>
+                <th>卖出合约</th>
+                <th>入场价差</th>
+                <th>出场价差</th>
+                <th>每手盈亏</th>
+                <th>出场原因</th>
+              </tr>
+            </thead>
+            <tbody id="tradesBody">
+              <tr><td colspan="10" class="empty">尚未产生交易记录</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tablePanel" aria-label="Put 垂直价差套利">
+        <div class="sectionTitle">
+          <h2>Put 垂直价差套利</h2>
+          <span>买入高执行价 Put，卖出低执行价 Put</span>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>品种</th>
+                <th>主力</th>
+                <th>买入合约</th>
+                <th>买入执行价</th>
+                <th>买入卖一</th>
+                <th>卖出合约</th>
+                <th>卖出执行价</th>
+                <th>卖出买一</th>
+                <th>快照价差</th>
+                <th>每手收益</th>
+                <th>剩余到期</th>
+                <th>开仓占用保证金</th>
+                <th>到期收益率</th>
+                <th>年化到期收益率</th>
+                <th>年化杠杆到期收益率</th>
+                <th>tick 价差</th>
+                <th>tick 时间</th>
+                <th>到期日</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="putOpportunitiesBody">
+              <tr><td colspan="20" class="empty">等待首次扫描</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tablePanel" aria-label="Call 垂直价差套利">
+        <div class="sectionTitle">
+          <h2>Call 垂直价差套利</h2>
+          <span>买入低执行价 Call，卖出高执行价 Call</span>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>品种</th>
+                <th>主力</th>
+                <th>买入合约</th>
+                <th>买入执行价</th>
+                <th>买入卖一</th>
+                <th>卖出合约</th>
+                <th>卖出执行价</th>
+                <th>卖出买一</th>
+                <th>快照价差</th>
+                <th>每手收益</th>
+                <th>剩余到期</th>
+                <th>开仓占用保证金</th>
+                <th>到期收益率</th>
+                <th>年化到期收益率</th>
+                <th>年化杠杆到期收益率</th>
+                <th>tick 价差</th>
+                <th>tick 时间</th>
+                <th>到期日</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="callOpportunitiesBody">
+              <tr><td colspan="20" class="empty">等待首次扫描</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="quotesPanel" class="tablePanel" aria-label="期权盘口" hidden>
+        <div class="sectionTitle">
+          <h2>期权盘口</h2>
+          <span id="quotesTitle">点击套利机会后显示对应品种和对应 Call/Put 盘口</span>
+        </div>
+        <div class="tableWrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>品种</th>
+                <th>类型</th>
+                <th>合约</th>
+                <th>执行价</th>
+                <th>买一</th>
+                <th>买一量</th>
+                <th>卖一</th>
+                <th>卖一量</th>
+                <th>最新</th>
+                <th>到期日</th>
+                <th>行情时间</th>
+              </tr>
+            </thead>
+            <tbody id="quotesBody">
+              <tr><td colspan="11" class="empty">等待首次扫描</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="main.js?v=vertical-arb-static-1"></script>
+  </body>
+</html>

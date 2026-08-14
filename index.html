@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>策略监控目录</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #18212f;
+      --muted: #647184;
+      --line: #dde3ea;
+      --accent: #1f6feb;
+      --accent-soft: #e9f1ff;
+      --good: #0f8f5f;
+      --shadow: 0 12px 30px rgba(24, 33, 47, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    header {
+      padding: 28px 32px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .unlock-button {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 680;
+      padding: 8px 12px;
+    }
+    .unlock-button:hover {
+      border-color: #b9cdf5;
+      background: var(--accent-soft);
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+    .strategy-card {
+      display: flex;
+      min-height: 172px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .strategy-card:hover {
+      transform: translateY(-2px);
+      border-color: #b9cdf5;
+      box-shadow: 0 16px 36px rgba(24, 33, 47, 0.12);
+    }
+    .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .card-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.35;
+    }
+    .status {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eaf7f1;
+      color: var(--good);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .card-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: auto;
+    }
+    .meta {
+      padding: 6px 9px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: #24559f;
+      font-size: 12px;
+      font-weight: 620;
+    }
+    .open {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 680;
+    }
+    .open::after {
+      content: "→";
+      font-size: 16px;
+      line-height: 1;
+    }
+    .is-hidden { display: none; }
+    @media (max-width: 720px) {
+      header { padding: 22px 18px 16px; }
+      .header-row { flex-direction: column; }
+      main { padding: 18px 14px 34px; }
+      h1 { font-size: 21px; }
+      .strategy-card { min-height: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>策略监控目录</h1>
+        <div class="subtitle">选择一个策略进入监控页面，数据由定时构建刷新。</div>
+      </div>
+      <button id="unlockButton" class="unlock-button" type="button">显示完全版本</button>
+    </div>
+  </header>
+  <main>
+    <section class="strategy-grid" aria-label="策略列表">
+      <a class="strategy-card" href="convertible-spread/">
+        <div class="card-content">
+          <div class="card-top">
+            <h2 class="card-title">可转抛价差监控</h2>
+            <span class="status">运行中</span>
+          </div>
+          <p class="card-desc">按交易所分组展示商品期货正套转抛机会，使用近月卖一价、远月买一价和挂单量计算价差与年化收益。</p>
+          <div class="meta-row">
+            <span class="meta">rqdata</span>
+            <span class="meta">5分钟刷新</span>
+            <span class="meta">注销月份过滤</span>
+          </div>
+          <span class="open">进入策略</span>
+        </div>
+      </a>
+
+      <a class="strategy-card restricted-strategy is-hidden" href="option-vertical-spread/">
+        <div class="card-content">
+          <div class="card-top">
+            <h2 class="card-title">期权垂直价差监控</h2>
+            <span class="status">运行中</span>
+          </div>
+          <p class="card-desc">扫描商品期权 Put 与 Call 垂直价差机会，展示买入卖一、卖出买一、到期收益率和保证金口径年化收益。</p>
+          <div class="meta-row">
+            <span class="meta">商品期权</span>
+            <span class="meta">Put / Call</span>
+            <span class="meta">静态快照</span>
+          </div>
+          <span class="open">进入策略</span>
+        </div>
+      </a>
+
+      <a class="strategy-card restricted-strategy is-hidden" href="sell-put-monitor/">
+        <div class="card-content">
+          <div class="card-top">
+            <h2 class="card-title">期货最低执行价 Sell Put 监控</h2>
+            <span class="status">运行中</span>
+          </div>
+          <p class="card-desc">按板块展示各期货品种最低执行价 Put 与最高执行价 Call，跟踪买一价、保证金占用、到期收益率和带杠杆年化收益。</p>
+          <div class="meta-row">
+            <span class="meta">Sell Put</span>
+            <span class="meta">板块监控</span>
+            <span class="meta">5分钟刷新</span>
+          </div>
+          <span class="open">进入策略</span>
+        </div>
+      </a>
+    </section>
+  </main>
+  <script>
+    const ACCESS_KEY = "futuresSpreadMonitor.fullAccess";
+    const PASSWORD = "12345";
+    const unlockButton = document.querySelector("#unlockButton");
+    const restrictedStrategies = document.querySelectorAll(".restricted-strategy");
+    if (new URLSearchParams(window.location.search).get("full") === "1") {
+      window.localStorage.setItem(ACCESS_KEY, "1");
+    }
+
+    function hasAccess() {
+      return window.localStorage.getItem(ACCESS_KEY) === "1";
+    }
+
+    function applyAccessState() {
+      const unlocked = hasAccess();
+      restrictedStrategies.forEach(card => card.classList.toggle("is-hidden", !unlocked));
+      unlockButton.textContent = unlocked ? "退出完全版本" : "显示完全版本";
+    }
+
+    unlockButton.addEventListener("click", () => {
+      if (hasAccess()) {
+        window.localStorage.removeItem(ACCESS_KEY);
+        applyAccessState();
+        return;
+      }
+      const input = window.prompt("请输入密码");
+      if (input !== PASSWORD) {
+        window.alert("密码错误");
+        return;
+      }
+      window.localStorage.setItem(ACCESS_KEY, "1");
+      window.location.href = `${window.location.pathname}?full=1`;
+    });
+
+    applyAccessState();
+  </script>
+</body>
+</html>
